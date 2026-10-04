@@ -1,0 +1,470 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum WorkflowState {
+  MAPPING_PENDING
+  PATHWAY_CONFIRMATION_PENDING
+  PATHWAY_SELECTED
+  ASSESSMENT_READY
+  ASSESSMENT_IN_PROGRESS
+  CRITERION_RESOLUTION_REQUIRED
+  REMEDIATION_REQUIRED
+  SIGNOFF_READY
+  ASSESSOR_DECISION_PENDING
+  FINAL_REPORT_READY
+  SIGNED_OFF
+  REPORT_FINALIZED_NOT_RECOMMENDED
+  LOCKED
+}
+
+enum RecommendationOutcome {
+  PATHWAY_CONFIRMATION_REQUIRED
+  UPSKILLING_REQUIRED
+  ASSESSMENT_REQUIRED
+  ASSESSMENT_INCOMPLETE
+  ASSESSMENT_REVIEW_REQUIRED
+  NOT_SUITABLE_FOR_SIGNOFF
+  SUITABLE_FOR_SIGNOFF
+}
+
+enum AssessorDecision {
+  ACCEPT_RECOMMENDATION
+  PATHWAY_ROUTING_OVERRIDE
+  RECOMMENDATION_OVERRIDE_DOWNGRADE
+  SECOND_REVIEW_REQUEST
+}
+
+enum FinalDisposition {
+  UPSKILLING_REFERRAL
+  SUITABLE_FOR_SIGNOFF
+  NOT_RECOMMENDED
+  REASSESSMENT_REQUIRED
+}
+
+enum RPLPathway {
+  RPL_A
+  RPL_B
+  RPL_C
+  RPL_D
+}
+
+enum ThresholdOperator {
+  GREATER_THAN_OR_EQUAL
+  GREATER_THAN
+}
+
+enum EducationLevel {
+  NONE
+  PRIMARY
+  FIFTH
+  EIGHTH
+  TENTH
+  TWELFTH
+  ITI
+  DIPLOMA
+  UG
+  PG
+  OTHER
+}
+
+enum EnrolmentStatus {
+  NONE
+  UG_PURSUING
+  PG_PURSUING
+  OTHER
+}
+
+enum ApplicantContextSource {
+  SELF_DECLARED
+  DOCUMENT_VERIFIED
+  ORGANIZER_DATA
+}
+
+enum EvidenceType {
+  VIDEO
+  IMAGE
+  DOCUMENT
+  NOTE
+}
+
+enum LocationStatus {
+  AVAILABLE
+  UNAVAILABLE
+  PERMISSION_DENIED
+}
+
+enum ProctoringStatus {
+  VERIFIED
+  FLAGGED
+  UNAVAILABLE
+}
+
+enum AssessmentComponentType {
+  THEORY
+  PRACTICAL
+  PROJECT
+  VIVA
+  OTHER
+}
+
+enum CriterionStatus {
+  NOT_DEMONSTRATED
+  PARTIAL
+  MEETS_ANCHOR
+  DEMONSTRATED
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+model QualificationVersion {
+  id                 String             @id @default(uuid())
+  externalCode       String             @unique
+  title              String
+  nsqfLevel          Int
+  status             String             @default("ACTIVE")
+  version            String             @default("1.0")
+  sourceUri          String
+  sourceChecksum     String
+  retrievedAt        DateTime           @default(now())
+  verificationStatus VerificationStatus @default(VERIFIED)
+  totalTheoryMarks   Int                @default(106)
+  totalPracticalMarks Int               @default(246)
+  totalVivaMarks     Int                @default(48)
+  totalMarks         Int                @default(400)
+  passPercentage     Int                @default(70)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  nos                NOS[]
+  criteria           Criterion[]
+  assessmentSchemes  AssessmentScheme[]
+  assessments        Assessment[]
+}
+
+model NOS {
+  id                     String               @id @default(uuid())
+  code                   String
+  title                  String
+  description            String
+  qualificationVersionId String
+  isMandatory            Boolean              @default(true)
+  order                  Int                  @default(1)
+
+  qualificationVersion   QualificationVersion @relation(fields: [qualificationVersionId], references: [id])
+  criteria               Criterion[]
+}
+
+model Criterion {
+  id                     String               @id @default(uuid())
+  code                   String
+  text                   String
+  mandatory              Boolean              @default(false)
+  nosId                  String
+  qualificationVersionId String
+  theoryMarks            Int                  @default(0)
+  practicalMarks         Int                  @default(0)
+  vivaMarks              Int                  @default(0)
+  projectMarks           Int                  @default(0)
+  totalMarks             Int                  @default(0)
+  order                  Int                  @default(1)
+
+  nos                    NOS                  @relation(fields: [nosId], references: [id])
+  qualificationVersion   QualificationVersion @relation(fields: [qualificationVersionId], references: [id])
+  criterionAssessments   CriterionAssessment[]
+  evidenceTraces         EvidenceTrace[]
+  aiObservations         AIObservation[]
+}
+
+model AssessmentScheme {
+  id                     String               @id @default(uuid())
+  qualificationVersionId String
+  version                String               @default("1.0")
+  aggregatePassPercentage Int                 @default(70)
+  componentsJson         String               // JSON string of AssessmentComponent[]
+
+  qualificationVersion   QualificationVersion @relation(fields: [qualificationVersionId], references: [id])
+}
+
+model Candidate {
+  id                       String                 @id @default(uuid())
+  fullName                 String
+  primaryLanguage          String                 @default("hi")
+  phone                    String?
+  consentRecordedAt        DateTime               @default(now())
+  consentVersion           String                 @default("dpdp-2026-v1")
+  highestFormalEducation   EducationLevel         @default(NONE)
+  currentEnrolment         EnrolmentStatus        @default(NONE)
+  educationContextVerified Boolean                @default(false)
+  applicantContextSource   ApplicantContextSource @default(SELF_DECLARED)
+  educationEvidenceRefs    String[]
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+
+  experienceStatements     ExperienceStatement[]
+  assessments              Assessment[]
+}
+
+model ExperienceStatement {
+  id                String    @id @default(uuid())
+  candidateId       String
+  rawText           String
+  audioRecordingUrl String?
+  detectedLanguage  String    @default("hi")
+  normalizedSkills  String[]
+  declaredTasks     String[]
+  declaredTools     String[]
+  declaredOutputs   String[]
+  yearsExperience   Int       @default(0)
+  source            String    @default("VOICE")
+  createdAt         DateTime  @default(now())
+
+  candidate         Candidate @relation(fields: [candidateId], references: [id])
+}
+
+model Site {
+  siteId                   String   @id @default(uuid())
+  name                     String
+  siteType                 String   @default("FIXED_CENTER")
+  equipmentProfile         String[]
+  environmentProfile       String   @default("STANDARD")
+  networkProfile           String   @default("INTERMITTENT")
+  geolocationPolicyVersion String   @default("v1")
+  siteLatitude             Float
+  siteLongitude            Float
+  locationAccuracyMeters   Float    @default(10.0)
+  locationSource           String   @default("GPS")
+
+  assessments              Assessment[]
+  evidenceItems            Evidence[]
+}
+
+model Assessment {
+  id                                          String                 @id @default(uuid())
+  candidateId                                 String
+  qualificationVersionId                      String
+  assessorId                                  String
+  siteId                                      String
+  workflowState                               WorkflowState          @default(MAPPING_PENDING)
+  rplPathway                                  RPLPathway             @default(RPL_A)
+  systemOutcome                               RecommendationOutcome?
+  assessorDecision                            AssessorDecision?
+  finalDisposition                            FinalDisposition?
+  
+  // Coverage metrics
+  aiProposedMappedCoverage                    Float?
+  assessorConfirmedMappedCoverage             Float?
+  assessedCoverage                            Float                  @default(0.0)
+  demonstratedCoverage                        Float                  @default(0.0)
+
+  // Policy freeze snapshot
+  coverageThresholdValue                      Int                    @default(70)
+  coverageThresholdOperator                  String                 @default(">=")
+  policyVersion                               String                 @default("2024.1")
+  schemeVersion                               String                 @default("2.0")
+  orientationCompletedHours                   Int                    @default(15)
+
+  overrideRationale                           String?
+  reasonCode                                  String?
+  isLocked                                    Boolean                @default(false)
+  lockedAt                                    DateTime?
+  createdAt                                   DateTime               @default(now())
+  updatedAt                                   DateTime               @updatedAt
+
+  candidate                                   Candidate              @relation(fields: [candidateId], references: [id])
+  qualificationVersion                        QualificationVersion   @relation(fields: [qualificationVersionId], references: [id])
+  site                                        Site                   @relation(fields: [siteId], references: [siteId])
+  sessions                                    AssessmentSession[]
+  criterionAssessments                        CriterionAssessment[]
+  scoreSnapshots                              ScoreSnapshot[]
+  recommendationSnapshots                     RecommendationSnapshot[]
+  auditEvents                                 AuditEvent[]
+}
+
+model AssessmentSession {
+  id                   String     @id @default(uuid())
+  sessionCode          String     @unique
+  assessmentId         String
+  assessorId           String
+  deviceId             String
+  startedAt            DateTime   @default(now())
+  endedAt              DateTime?
+  proctoringAttested   Boolean    @default(false)
+  proctoringAttestedAt DateTime?
+  clientTimezone       String     @default("Asia/Kolkata")
+  clockSkewSeconds     Int        @default(0)
+
+  assessment           Assessment @relation(fields: [assessmentId], references: [id])
+  evidenceItems        Evidence[]
+}
+
+model Evidence {
+  id                        String           @id @default(uuid())
+  captureId                 String           @unique
+  sessionId                 String
+  assessmentId              String
+  candidateId               String
+  assessorId                String
+  siteId                    String
+  taskCode                  String
+  evidenceType              EvidenceType
+  fileUri                   String
+  sha256                    String
+  durationSeconds           Float?
+  deviceId                  String
+  evidenceVersion           Int              @default(1)
+
+  capturedAtClient          DateTime
+  capturedAtServer          DateTime?
+  clientTimezone            String           @default("Asia/Kolkata")
+  clockSkewSeconds          Int              @default(0)
+
+  latitude                  Float?
+  longitude                 Float?
+  locationAccuracyMeters    Float?
+  locationCapturedAt        DateTime?
+  locationStatus            LocationStatus   @default(AVAILABLE)
+  mockLocationFlag          Boolean          @default(false)
+  geolocationIntegrityFlag  Boolean          @default(true)
+
+  proctoringStatus          ProctoringStatus @default(VERIFIED)
+  proctoringAttestedBy      String?
+  proctoringAttestedAt      DateTime?
+
+  isSynced                  Boolean          @default(true)
+  createdAt                 DateTime         @default(now())
+
+  session                   AssessmentSession @relation(fields: [sessionId], references: [id])
+  site                      Site              @relation(fields: [siteId], references: [siteId])
+  evidenceTraces            EvidenceTrace[]
+}
+
+model EvidenceTrace {
+  id               String    @id @default(uuid())
+  evidenceId       String
+  criterionId      String
+  relationType     String    @default("SUPPORTING")
+  createdBy        String    @default("ASSESSOR")
+  assessorApproved Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+
+  evidence         Evidence  @relation(fields: [evidenceId], references: [id])
+  criterion        Criterion @relation(fields: [criterionId], references: [id])
+}
+
+model AIObservation {
+  id                  String          @id @default(uuid())
+  criterionId         String
+  modelRunId          String
+  evidenceRefsJson    String          // JSON Array of { evidenceId, timestampStart, timestampEnd }
+  observation         String
+  confidence          Float
+  suggestedAssessment CriterionStatus
+  suggestedMark       Int?
+  suggestedMarkBasis  String          @default("OFFICIAL_ASSESSMENT_SCHEME")
+  rationale           String
+  assessorAction      String?         // ACCEPTED | EDITED | REJECTED
+  editedMark          Int?
+  assessorComment     String?
+  createdAt           DateTime        @default(now())
+
+  criterion           Criterion       @relation(fields: [criterionId], references: [id])
+}
+
+model CriterionAssessment {
+  id                 String          @id @default(uuid())
+  assessmentId       String
+  criterionId        String
+  assessorId         String
+  status             CriterionStatus @default(NOT_DEMONSTRATED)
+  theoryMarks        Int             @default(0)
+  practicalMarks     Int             @default(0)
+  vivaMarks          Int             @default(0)
+  totalAwardedMarks  Int             @default(0)
+  assessorNote       String?
+  evidenceOpened     Boolean         @default(true)
+  hasConflict        Boolean         @default(false)
+  updatedAt          DateTime        @updatedAt
+
+  assessment         Assessment      @relation(fields: [assessmentId], references: [id])
+  criterion          Criterion       @relation(fields: [criterionId], references: [id])
+
+  @@unique([assessmentId, criterionId])
+}
+
+model ScoreSnapshot {
+  id                   String     @id @default(uuid())
+  assessmentId         String
+  theoryScore          Int
+  practicalScore       Int
+  vivaScore            Int
+  totalScore           Int
+  maxScore             Int
+  scorePercentage      Float
+  componentTotalsJson  String     // JSON Record
+  qualifyingRulePassed Boolean
+  calculatedAt         DateTime   @default(now())
+  isAuthoritative      Boolean    @default(true)
+
+  assessment           Assessment @relation(fields: [assessmentId], references: [id])
+}
+
+model RecommendationSnapshot {
+  id                      String                @id @default(uuid())
+  assessmentId            String
+  workflowState           WorkflowState
+  systemOutcome           RecommendationOutcome
+  pathway                 RPLPathway
+  mappedCoverage          Float
+  assessedCoverage        Float
+  demonstratedCoverage    Float
+  mandatoryCriteriaPass   Boolean
+  minimumPassRulePass     Boolean
+  evidenceComplete        Boolean
+  unresolvedCriteriaCount Int
+  policyVersion           String
+  generatedAt             DateTime              @default(now())
+
+  assessment              Assessment            @relation(fields: [assessmentId], references: [id])
+}
+
+model AuditEvent {
+  id              String      @id @default(uuid())
+  assessmentId    String?
+  actorId         String
+  actorRole       String
+  eventType       String
+  entityType      String
+  entityId        String
+  beforeHash      String?
+  afterHash       String?
+  payloadJson     String
+  clientTimestamp DateTime?
+  serverTimestamp DateTime    @default(now())
+
+  assessment      Assessment? @relation(fields: [assessmentId], references: [id])
+}
+
+model SyncEvent {
+  id             String   @id @default(uuid())
+  eventId        String   @unique
+  deviceId       String
+  entityType     String
+  entityId       String
+  operation      String
+  baseVersion    Int
+  clientSequence Int
+  payloadHash    String
+  serverVersion  Int
+  createdAt      DateTime @default(now())
+}

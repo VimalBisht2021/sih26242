@@ -1,0 +1,27 @@
+{
+  "name": "@sih26242/database",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.4.1",
+    "@sih26242/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "prisma": "^6.4.1",
+    "typescript": "^5.7.3"
+  }
+}

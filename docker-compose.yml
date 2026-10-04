@@ -1,0 +1,105 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sih26242-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sih_user
+      POSTGRES_PASSWORD: sih_password
+      POSTGRES_DB: sih26242_rpl
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sih_user -d sih26242_rpl"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sih26242-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: sih26242-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sih26242-network
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    container_name: sih26242-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: sih_user
+      DATABASE_URL: postgresql://sih_user:sih_password@postgres:5432/sih26242_rpl?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: super-secret-key-change-in-production-for-sih26242
+      OFFLINE_AUTH_SECRET: offline-signing-secret-key-sih26242
+      AI_PROVIDER: mock
+      CLOCK_DRIFT_THRESHOLD_SECONDS: 300
+      OFFLINE_AUTH_TTL_HOURS: 24
+      AUTO_SEED: "false"
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:4000/api/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - sih26242-network
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:4000/api
+    container_name: sih26242-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000', (r) => process.exit(r.statusCode < 400 ? 0 : 1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - sih26242-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  sih26242-network:
+    driver: bridge

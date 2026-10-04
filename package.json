@@ -1,0 +1,22 @@
+{
+  "name": "sih26242-rpl-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Smart India Hackathon Problem Statement 26242: AI-Assisted Skill Assessment Tool for Recognition of Prior Learning (RPL)",
+  "scripts": {
+    "build": "pnpm -r --filter=!apps/web build && pnpm --filter=apps/web build",
+    "test": "pnpm -r test",
+    "test:domain": "pnpm --filter=@sih26242/domain test",
+    "test:evaluation": "pnpm --filter=@sih26242/evaluation test",
+    "lint": "pnpm -r lint",
+    "dev:api": "pnpm --filter=@sih26242/api dev",
+    "dev:web": "pnpm --filter=@sih26242/web dev",
+    "seed": "pnpm --filter=@sih26242/api seed",
+    "import:worker-data": "pnpm --filter=@sih26242/api import:worker-data"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "playwright": "^1.63.0",
+    "typescript": "^5.7.3"
+  }
+}

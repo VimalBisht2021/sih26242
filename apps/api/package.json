@@ -1,0 +1,38 @@
+{
+  "name": "@sih26242/api",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "node --watch dist/main.js",
+    "start": "node dist/main.js",
+    "seed": "node dist/seed.js",
+    "import:worker-data": "node dist/import-cli.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.11",
+    "@nestjs/core": "^11.0.11",
+    "@nestjs/platform-express": "^11.0.11",
+    "@sih26242/ai": "workspace:*",
+    "@sih26242/contracts": "workspace:*",
+    "@sih26242/database": "workspace:*",
+    "@sih26242/domain": "workspace:*",
+    "@sih26242/evaluation": "workspace:*",
+    "@sih26242/qualification": "workspace:*",
+    "@sih26242/shared": "workspace:*",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "cors": "^2.8.5",
+    "csv-parse": "^5.6.0",
+    "dotenv": "^16.4.7",
+    "multer": "^1.4.5-lts.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^22.13.9",
+    "typescript": "^5.7.3"
+  }
+}
