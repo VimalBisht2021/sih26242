@@ -291,9 +291,58 @@ The database schema (`packages/database/prisma/schema.prisma`) comprises 12 prim
 
 ## Evidence & Cryptographic Integrity
 
-1. **NIST FIPS 180-4 SHA-256 Digests:** Every media artifact submitted generates a cryptographic checksum via `computeSha256()` in `packages/shared/src/crypto.ts`.
-2. **Geotagging & Proctoring Attestation:** Evidence items persist latitude, longitude, device timestamp, and a mandatory boolean attestation (`proctoringAttested: true`) confirming direct assessor supervision.
-3. **Dynamic Task Badging:** The UI dynamically monitors the `Evidence` table. Unassessed tasks display `⏳ Pending Capture`; captured tasks display `✓ Evidence Captured` with clickable SHA-256 verification badges.
+### Real Browser Evidence Capture & Storage Architecture
+
+```
+[Browser Camera (WebRTC) / File Input (<input type="file">)]
+                       │
+                       ▼
+              [Actual File / Blob]
+                       │
+                       ▼
+       [Client SHA-256 (window.crypto.subtle)]
+                       │
+                       ▼ (multipart/form-data)
+              [NestJS Upload API]
+                       │
+         ┌─────────────┴─────────────┐
+         ▼                           ▼
+[Magic Bytes & MIME Check]   [Server SHA-256 Recomputation]
+         │                           │
+         └─────────────┬─────────────┘
+                       ▼
+         [SHA Comparison (Client vs Server)]
+          ├── MISMATCH ──► [HTTP 400 INTEGRITY_MISMATCH Rejected]
+          └── MATCH
+                       │
+                       ▼
+        [Durable Filesystem Storage]
+          (/app/storage/evidence/:assessment/:task/:evidenceId.ext)
+                       │
+                       ▼
+        [PostgreSQL Evidence Record]
+          (sha256, storageUri, mimeType, sizeBytes, taskCode)
+                       │
+                       ▼
+        [AuditEvent Record (EVIDENCE_CAPTURED)]
+                       │
+                       ▼
+        [Assessor Review & Visual Media Inspection]
+```
+
+1. **Dual Capture Modes:**
+   - **Real File Selection:** Native `<input type="file" accept="image/*,video/*">` enabling genuine binary file uploads from local storage.
+   - **Real In-Browser Camera:** Native `navigator.mediaDevices.getUserMedia(...)` providing a live viewfinder modal, frame preview, retake controls, and direct snapshot capture.
+2. **Dual-Ended SHA-256 Cryptographic Verification:**
+   - **Client Hashing:** Before uploading, the browser hashes exact file bytes via `window.crypto.subtle.digest("SHA-256", buffer)`.
+   - **Server Independent Verification:** The server re-hashes the uploaded byte stream independently and compares it with the client digest. Any mismatch triggers an immediate HTTP 400 `INTEGRITY_MISMATCH` rejection and halts persistence.
+3. **Magic Byte Format Verification:** Server enforces binary header validation (JPEG `FF D8 FF`, PNG `89 50 4E 47`, WebP `52 49 46 46`, WebM `1A 45 DF A3`, MP4 `ftyp`) to prevent extension spoofing or executable uploads.
+4. **Durable Storage Volume:** Media files are saved to the persistent Docker volume `evidence_storage` mapped to `/app/storage/evidence`. Storage keys follow the secure virtual pattern `/evidence/{assessmentId}/{taskCode}/{evidenceId}.{ext}` without exposing server filesystem internals.
+5. **Real Visual Media Rendering:** The UI dynamically renders captured media (`<img>` and `<video>` tags) and provides a full-resolution inspection modal displaying the complete 64-character SHA-256 checksum and download link.
+6. **Hardware & AI Disclosures:**
+   - *Camera:* Browser camera access is demonstrated; physical ruggedized field-device integration remains an operational dependency.
+   - *AI Vision:* The current demo provider uses synthetic data (`MockAIProvider`). AI visual reasoning is explicitly marked unavailable in demo mode, preserving authoritative human assessor review.
+   - *GPS:* Geolocation is tagged `DEMO / SIMULATED GPS` until dedicated GNSS hardware is configured.
 
 ---
 
@@ -499,7 +548,9 @@ Key REST endpoints exposed by NestJS on `http://localhost:4000/api`:
 | `POST` | `/assessments` | Initialize assessment with confirmed pathway |
 | `POST` | `/assessments/:id/sign-off` | Server-recomputed finalization and transactional lock |
 | `PATCH`| `/criteria/:id` | Submit assessor marks for an individual criterion rubric |
-| `POST` | `/evidence` | Store task evidence with SHA-256 hash and geolocation |
+| `POST` | `/assessments/:id/tasks/:taskId/evidence/upload` | Multipart real file/camera upload with server SHA-256 verification |
+| `GET`  | `/assessments/:id/evidence/:evidenceId/file` | Stream persisted evidence media buffer with verified MIME & SHA-256 ETag |
+| `POST` | `/evidence` | Store task evidence with SHA-256 hash and geolocation (JSON sync) |
 | `POST` | `/ai/analyze-evidence` | Request advisory AI evidence observation |
 | `POST` | `/sync/batch` | Idempotent batch synchronization for offline event queue |
 | `GET` | `/evaluation/runs` | Retrieve psychometric crossover study analytics |
@@ -508,7 +559,7 @@ Key REST endpoints exposed by NestJS on `http://localhost:4000/api`:
 
 ## Testing & Quality Assurance
 
-The codebase enforces zero-defect quality gates with **58 / 58 passing automated tests**:
+The codebase enforces zero-defect quality gates with **67 / 67 passing automated tests**:
 
 ```bash
 # Run pure domain invariants and recommendation tests (30 tests)
@@ -520,7 +571,10 @@ pnpm test:evaluation
 # Run end-to-end integration and claim-gate suites (19 tests)
 pnpm test
 
-# Run full Playwright headless browser E2E test suite (5 complete workflows)
+# Run real evidence binary upload and SHA-256 integrity suite (8 tests)
+node --test tests/e2e/real-evidence-upload.test.ts
+
+# Run full Playwright headless browser E2E test suites (6 complete workflows)
 pnpm exec playwright test
 ```
 
@@ -529,7 +583,8 @@ pnpm exec playwright test
 - **Evaluation Math:** Tests 4-assessor crossover matrix generation, 48-hour washout windows, and Krippendorff's alpha bootstrapping.
 - **Claim Gate & Provenance:** Enforces provenance disclosures and rejects runs with missing data types.
 - **End-to-End Workflows:** Tests complete lifecycle from candidate creation to transactional locking.
-- **Playwright Browser E2E:** Automates actual user journeys in headless Chromium, verifying DOM updates, reload persistence, dynamic evidence cards, and rubric grading tables.
+- **Real Evidence Binary Upload:** Tests multipart upload of actual files, server-side hash computation, tamper rejection (`INTEGRITY_MISMATCH`), task isolation, and reload persistence.
+- **Playwright Browser E2E:** Automates actual user journeys in headless Chromium, verifying camera viewfinder, real file upload, preview display, DOM updates, reload persistence, dynamic evidence cards, and rubric grading tables.
 
 ---
 
@@ -537,13 +592,17 @@ pnpm exec playwright test
 
 | System Capability | Verification Level | Evidence in Codebase |
 | :--- | :--- | :--- |
+| **Real Browser Camera Capture** | **VERIFIED** | WebRTC `getUserMedia()` live viewfinder & capture modal |
+| **Real File Selection & Upload** | **VERIFIED** | Native `<input type="file">` multipart upload (`evidence.controller.ts`) |
+| **Server-Side SHA-256 Verification** | **VERIFIED** | Independent server hash computation & tamper rejection (`evidence.service.ts`) |
+| **Durable Filesystem Persistence** | **VERIFIED** | `EvidenceStorageService` writing to Docker volume `evidence_storage` |
+| **Visual Media Rendering** | **VERIFIED** | Inline `<img>`/`<video>` preview and inspection modal |
 | **Fresh Candidate Creation** | **VERIFIED** | `apps/web/src/components/CandidateOnboardingModal.tsx` |
 | **Multi-Candidate Isolation** | **VERIFIED** | Playwright E2E Suite (`ui-workflow.spec.ts`) |
 | **Browser Reload Persistence** | **VERIFIED** | `localStorage` + `GET /api/assessments` hydration |
 | **Qualification Mapping** | **VERIFIED** | Hybrid semantic matcher (`packages/qualification`) |
 | **Per-Criterion Rubric Scoring** | **VERIFIED** | `PATCH /api/criteria/:id` + client/server engine parity |
 | **Dynamic Task Evidence Cards** | **VERIFIED** | Dynamic card rendering from PostgreSQL `Evidence` |
-| **NIST SHA-256 Integrity** | **VERIFIED** | `packages/shared/src/crypto.ts` |
 | **Transactional Sign-Off Lock** | **VERIFIED** | `assessments.service.ts` line 637 (`$transaction`) |
 | **Dual Exit Dispositions** | **VERIFIED** | Positive certification & negative upskilling gap reports |
 | **AI Evidence Assistance** | **SYNTHETIC ENGINE** | `MockAIProvider` with deterministic advisory rules |

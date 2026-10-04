@@ -12,8 +12,8 @@ test.describe('PS26242 Browser UI & Interactive Governance Verification', () => 
     // -------------------------------------------------------------------------
     // 1. Initial Load & Governance Header
     // -------------------------------------------------------------------------
-    await page.goto('http://localhost:3000');
-    await page.waitForLoadState('networkidle');
+    await page.goto('http://127.0.0.1:3000', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#assessment-selector')).toBeVisible({ timeout: 15000 });
 
     // Verify System Governance Invariant
     const governanceText = page.locator('text=AI CAN HELP. AI CANNOT CERTIFY.');
@@ -71,8 +71,8 @@ test.describe('PS26242 Browser UI & Interactive Governance Verification', () => 
     await expect(page.locator('text=Outbox:').locator('..').locator('strong:has-text("1")')).toBeVisible();
 
     // Reload page to verify Local State Persistence survives page refreshes
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#assessment-selector')).toBeVisible({ timeout: 15000 });
 
     // Confirm local outbox persisted through reload
     await expect(page.locator('text=Outbox:').locator('..').locator('strong:has-text("1")')).toBeVisible();
@@ -159,8 +159,8 @@ test.describe('PS26242 Browser UI & Interactive Governance Verification', () => 
     const uniqueCandidateName = `Live Candidate ${Date.now().toString(36).toUpperCase()}`;
     const uniquePhone = `+91-987${Math.floor(1000000 + Math.random() * 9000000)}`;
 
-    await page.goto('http://localhost:3000');
-    await page.waitForLoadState('networkidle');
+    await page.goto('http://127.0.0.1:3000', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#assessment-selector')).toBeVisible({ timeout: 15000 });
 
     // 1. Verify and click "+ New Candidate / Live Assessment" action button in header
     const newCandidateBtn = page.locator('#btn-new-candidate-flow');
@@ -259,8 +259,8 @@ test.describe('PS26242 Browser UI & Interactive Governance Verification', () => 
     const candidateA = `Candidate Alpha ${Date.now()}`;
     const candidateB = `Candidate Beta ${Date.now()}`;
 
-    await page.goto('http://localhost:3000');
-    await page.waitForLoadState('networkidle');
+    await page.goto('http://127.0.0.1:3000', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#assessment-selector')).toBeVisible({ timeout: 15000 });
 
     // --- Create Candidate A ---
     await page.click('#btn-new-candidate-flow');
@@ -292,8 +292,8 @@ test.describe('PS26242 Browser UI & Interactive Governance Verification', () => 
     expect(optionsText).toContain(candidateB);
 
     // --- RELOAD BROWSER (GAP-01 Test) ---
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#assessment-selector')).toBeVisible({ timeout: 15000 });
     await page.waitForTimeout(1500);
 
     // Confirm BOTH Candidate A and Candidate B remain present in the selector after browser reload!
@@ -305,8 +305,8 @@ test.describe('PS26242 Browser UI & Interactive Governance Verification', () => 
   test('GAP-04 & GAP-05: Real per-criterion rubric scoring UI and dynamic evidence pending vs captured state', async ({ page }) => {
     const candidateName = `Dynamic Evidence User ${Date.now()}`;
 
-    await page.goto('http://localhost:3000');
-    await page.waitForLoadState('networkidle');
+    await page.goto('http://127.0.0.1:3000', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#assessment-selector')).toBeVisible({ timeout: 15000 });
 
     // Create fresh candidate
     await page.click('#btn-new-candidate-flow');
@@ -352,8 +352,8 @@ test.describe('PS26242 Browser UI & Interactive Governance Verification', () => 
   });
 
   test('GAP-07 & GAP-08: Tamper-evident audit trail & configured 400-mark scheme certification package', async ({ page }) => {
-    await page.goto('http://localhost:3000');
-    await page.waitForLoadState('networkidle');
+    await page.goto('http://127.0.0.1:3000', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#assessment-selector')).toBeVisible({ timeout: 15000 });
 
     // Go to Tab 3
     await page.click('button:has-text("3. Assessor")');

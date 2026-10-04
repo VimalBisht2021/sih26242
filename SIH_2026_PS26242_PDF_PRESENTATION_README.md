@@ -45,9 +45,10 @@ The format model established by the SIH reference presentation consists of a dis
 | **Backend Stack** | NestJS 11.0.11 Modular Monolith, TypeScript 5.7, Prisma ORM 6.4.1 | `apps/api/package.json`, `apps/api/src/` |
 | **Database & Cache** | PostgreSQL 16 (Port 5433 Host, 5432 Internal), Redis 7 (Port 6379) | `packages/database/prisma/schema.prisma`, `docker-compose.yml` |
 | **Containerization** | Multi-stage Dockerfiles (`docker/api.Dockerfile`, `docker/web.Dockerfile`), Docker Compose | Fully verified running cluster via `docker compose ps` |
-| **Testing Coverage** | **58 / 58 Automated Tests Passing (100%)** across 5 test suites | `pnpm test` & Playwright E2E Test Suite |
-| **Browser E2E Tests** | **5 / 5 Browser E2E Workflows Passing** (Chromium headless & interactive DOM) | `tests/e2e/ui-workflow.spec.ts` |
-| **Integrity Controls** | NIST FIPS 180-4 SHA-256 Media Hashing, GPS Geotagging, Assessor Attestation, Audit Trail | `packages/shared/src/crypto.ts`, `AuditEvent` Table |
+| **Testing Coverage** | **67 / 67 Automated Tests Passing (100%)** across 7 test suites | `pnpm test`, `tests/e2e/real-evidence-upload.test.ts` & Playwright |
+| **Browser E2E Tests** | **6 / 6 Browser E2E Workflows Passing** (Chromium headless & interactive DOM) | `tests/e2e/ui-workflow.spec.ts`, `tests/e2e/real-evidence-ui.spec.ts` |
+| **Evidence & Storage** | Real Browser Camera (WebRTC) & File Selection, Client + Server SHA-256 Verification, Durable Filesystem Volume | `apps/api/src/evidence/evidence-storage.service.ts` |
+| **Integrity Controls** | NIST FIPS 180-4 SHA-256 Dual Verification, GPS Geotagging, Assessor Attestation, Audit Trail | `packages/shared/src/crypto.ts`, `AuditEvent` Table |
 | **AI Status** | Governed Synthetic AI Provider (`MockAIProvider`) with Perturbation & Challenge Injection | `packages/ai/src/mock-provider.ts` |
 
 ---
@@ -255,15 +256,16 @@ Demonstrate that the platform is technically proven, operationally practical for
 ### Page 4 Exact Content Specification
 
 #### Quadrant 1: Technical Feasibility
-* **Working Containerized Prototype:** Verified multi-container deployment using Docker Compose orchestrating Next.js, NestJS, PostgreSQL 16, and Redis 7 with sub-second healthchecks.
-* **100% Automated Test Coverage:** 58 out of 58 automated tests passing across domain recommendation logic (30/30), evaluation statistics (4/4), end-to-end integration (15/15), claim gating (4/4), and Playwright browser E2E (5/5).
+* **Working Containerized Prototype:** Verified multi-container deployment using Docker Compose orchestrating Next.js, NestJS, PostgreSQL 16, and Redis 7 with sub-second healthchecks and persistent storage volumes (`evidence_storage`).
+* **100% Automated Test Coverage:** 67 out of 67 automated tests passing across domain recommendation logic (30/30), evaluation statistics (4/4), end-to-end integration (15/15), claim gating (4/4), real evidence upload integrity (8/8), and Playwright browser E2E (6/6).
+* **Real Browser Evidence Capture Pipeline:** Verified WebRTC camera capture (`getUserMedia`) and file upload (`<input type="file">`) with dual-ended client + server SHA-256 independent verification and tamper rejection (`INTEGRITY_MISMATCH`).
 * **Deterministic Server-Side Authority:** Zero score calculations occur on the client; the backend recomputes all grades in a single PostgreSQL `$transaction` before locking.
 * **Proven Offline Synchronization:** IndexedDB offline queue with cryptographic hash verification and idempotent batch reconciliation resolves out-of-order field submissions.
-* *Evidence:* `docker-compose.yml`, `tests/e2e/ui-workflow.spec.ts`, `packages/domain/src/recommendation.test.ts`.
+* *Evidence:* `docker-compose.yml`, `tests/e2e/real-evidence-ui.spec.ts`, `tests/e2e/real-evidence-upload.test.ts`, `packages/domain/src/recommendation.test.ts`.
 
 #### Quadrant 2: Operational Feasibility & Usability
 * **Low-Literacy Candidate Experience:** Simple regional language voice capture (Hindi demonstrated) removes the barrier of written application forms for informal workers.
-* **Streamlined Assessor Workstation:** Intuitive 3-tab workflow allows assessors to review candidates, inspect photo/video evidence with SHA-256 badges, and grade criteria on standard mobile/tablet screens.
+* **Streamlined Assessor Workstation:** Intuitive 3-tab workflow allows assessors to review candidates, inspect real photo/video evidence with SHA-256 badges, and grade criteria on standard mobile/tablet screens.
 * **Zero Disruption for Field Outages:** Unstable rural connectivity does not halt testing; assessors continue practical evaluation offline, syncing once connectivity is restored.
 * **Standardized Qualification Catalog:** Built-in public NQR qualification fixtures (demonstrating `AMH/Q0301 Sewing Machine Operator` and 12 sector distractors) eliminate manual paper syllabus lookups.
 * *Evidence:* `apps/web/src/components/CandidateOnboardingModal.tsx`, `apps/web/src/components/NetworkStatusBar.tsx`.
@@ -283,10 +285,10 @@ Demonstrate that the platform is technically proven, operationally practical for
 * *Evidence:* `packages/contracts/src/enums.ts`, `apps/api/src/assessments/assessments.service.ts` line 637.
 
 ### Footer
-`Verification: 58/58 Tests Passing | Docker Compose Cluster: Operational | Zero Proprietary Licensing Dependencies`
+`Verification: 67/67 Tests Passing | Docker Compose Cluster: Operational | Zero Proprietary Licensing Dependencies`
 
 ### Speaker Notes
-> "Feasibility is where hackathon projects often fail under questioning. We engineered this platform to be practically viable on the ground in India. Technically, it is proven with 58 automated tests and Docker containers. Operationally, it works on a single assessor tablet with offline support. Economically, it runs on open-source Linux, PostgreSQL, and sovereign AI models without costly cloud subscriptions. Legally, it complies with NCVET rules by ensuring AI never signs a certificate."
+> "Feasibility is where hackathon projects often fail under questioning. We engineered this platform to be practically viable on the ground in India. Technically, it is proven with 67 automated tests, real browser camera capture, dual-ended SHA-256 verification, and Docker containers. Operationally, it works on a single assessor tablet with offline support. Economically, it runs on open-source Linux, PostgreSQL, and sovereign AI models without costly cloud subscriptions. Legally, it complies with NCVET rules by ensuring AI never signs a certificate."
 
 ---
 

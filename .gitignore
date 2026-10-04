@@ -12,4 +12,7 @@ coverage/
 *.tsbuildinfo
 .turbo/
 data/storage/
+storage/
+test-results/
+playwright-report/
 nul

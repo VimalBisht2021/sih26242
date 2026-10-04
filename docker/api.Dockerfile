@@ -25,7 +25,7 @@ RUN pnpm -r --filter=!@sih26242/web build
 
 # Stage 3: Runner
 FROM node:22-alpine AS runner
-RUN apk add --no-cache libc6-compat openssl postgresql-client
+RUN apk add --no-cache libc6-compat openssl postgresql-client su-exec
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -42,8 +42,7 @@ COPY --chown=node:node --from=builder /app/apps/api ./apps/api
 
 COPY --chown=node:node docker/api-entrypoint.sh /usr/local/bin/api-entrypoint.sh
 RUN chmod +x /usr/local/bin/api-entrypoint.sh
-
-USER node
+RUN mkdir -p /app/storage/evidence && chown -R node:node /app/storage
 
 EXPOSE 4000
 

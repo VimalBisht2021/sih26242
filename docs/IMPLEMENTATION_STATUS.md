@@ -60,12 +60,43 @@ All functional gates, integrity boundaries, domain invariants, offline synchroni
 - **Evaluation Math Suite:** 4 / 4 tests passing (`packages/evaluation/src/evaluation.test.ts`).
 - **End-to-End Workflow Suite:** 15 / 15 tests passing (`tests/e2e/e2e-workflow.test.ts`).
 - **Claim Gate & Provenance Suite:** 4 / 4 tests passing (`tests/e2e/claim-gate.test.ts`).
-- **Playwright Browser E2E Suite:** 5 / 5 passing (`tests/e2e/ui-workflow.spec.ts`: Test 1: Full interactive preset demo workflow; Test 2: Live candidate onboarding & end-to-end assessment; Test 3: GAP-01 Assessment reload persistence; Test 4: GAP-04 & GAP-05 Rubric scoring & dynamic evidence; Test 5: GAP-07 & GAP-08 Audit trail & 400-mark package).
-- **Total Automated Tests:** 58 / 58 tests passing (100% pass rate).
+- **Real Evidence Upload Suite:** 8 / 8 tests passing (`tests/e2e/real-evidence-upload.test.ts`):
+  - Test 1: Upload known test image -> HTTP 201 -> File exists in storage -> SHA matches
+  - Test 2: Upload second image with different content -> Hashes differ
+  - Test 3: Tamper client SHA -> Server detects divergence -> HTTP 400 `INTEGRITY_MISMATCH`
+  - Test 4: Task Association -> Upload T1 -> T1=captured, T2=pending
+  - Test 5: Reload Persistence -> Stored media buffer matches uploaded buffer byte-for-byte
+  - Test 6: Tenant Isolation -> Candidate A evidence inaccessible under Candidate B assessment
+  - Test 7: Finalization & Audit -> `AuditEvent` records `EVIDENCE_CAPTURED` with valid SHA
+  - Test 8: Locked Assessment -> Reject uploads after finalization (`ASSESSMENT_LOCKED`)
+- **Playwright Browser E2E Suites:** 6 / 6 passing:
+  - `tests/e2e/ui-workflow.spec.ts`: 5 tests (Full interactive preset demo workflow; Live candidate onboarding & end-to-end assessment; GAP-01 Assessment reload persistence; GAP-04 & GAP-05 Rubric scoring & dynamic evidence; GAP-07 & GAP-08 Audit trail & 400-mark package).
+  - `tests/e2e/real-evidence-ui.spec.ts`: 1 test (End-to-end browser camera/file selection, real SHA-256 computation, multipart upload, preview rendering, and browser reload persistence).
+- **Total Automated Tests:** 67 / 67 tests passing (100% pass rate).
 
 ---
 
-## 5. Deployment Blockers
+## 5. Real Browser Evidence Capture & Durable Storage Architecture
+
+1. **Dual Capture Modes:**
+   - **Real File Upload:** Native `<input type="file" accept="image/*,video/*">` enabling local file selection.
+   - **Real WebRTC Camera:** Native `navigator.mediaDevices.getUserMedia(...)` with live viewfinder, retake, and snapshot capture.
+2. **Cryptographic Integrity (Client + Server):**
+   - Exact file bytes hashed in browser via `window.crypto.subtle.digest("SHA-256", buffer)`.
+   - Server independently recomputes SHA-256 on received buffer and validates magic bytes (JPEG `FF D8 FF`, PNG `89 50 4E 47`, WebP `52 49 46 46`, WebM `1A 45 DF A3`, MP4 `ftyp`).
+   - Hash mismatches trigger immediate HTTP 400 `INTEGRITY_MISMATCH` rejection.
+3. **Durable Filesystem Persistence:**
+   - Persisted via `EvidenceStorageService` to Docker persistent volume `evidence_storage` mapped to `/app/storage/evidence`.
+   - Virtual storage URI: `/evidence/{assessmentId}/{taskCode}/{evidenceId}.{ext}`. Absolute system paths are never exposed.
+4. **Visual Rendering & Inspection:**
+   - Real media rendered inline on task cards using `<img>` and `<video>` tags.
+   - Interactive inspection modal displaying full 64-char SHA-256, byte size, MIME type, and media download.
+5. **AI Boundary Disclosure:**
+   - Explicit UI and audit disclosure: *"AI visual analysis unavailable in current synthetic demo provider. Assessor review is authoritative."*
+
+---
+
+## 6. Deployment Blockers
 
 **DEMO BLOCKERS: NONE** (Ready for hackathon pitch and live demonstration).
 
@@ -84,8 +115,9 @@ All functional gates, integrity boundaries, domain invariants, offline synchroni
 ```
 ========================================================================
 DEMO BUILD:                 PASS
-AUTOMATED TESTS:            58/58 PASS (30 domain, 4 evaluation, 15 workflow, 4 claim-gate, 5 browser E2E)
-BROWSER E2E:                PASS (Playwright Chromium, 5 complete end-to-end interactive workflows)
+EVIDENCE CAPTURE & UPLOAD:  PASS (Real file upload, WebRTC camera, server SHA-256, durable storage)
+AUTOMATED TESTS:            67/67 PASS (30 domain, 4 evaluation, 15 workflow, 4 claim-gate, 8 evidence upload, 6 browser E2E)
+BROWSER E2E:                PASS (Playwright Chromium, 6 complete end-to-end interactive workflows)
 DATA PROVENANCE:            EXPLICIT
 QP PROVENANCE:              SOURCE-BACKED DEVELOPER FIXTURE
 POLICY CONSISTENCY:         PASS (AMH/Q0301 NSQF Level 3, RPL-A >=70% Experiential Gate)

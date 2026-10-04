@@ -53,6 +53,9 @@ services:
       CLOCK_DRIFT_THRESHOLD_SECONDS: 300
       OFFLINE_AUTH_TTL_HOURS: 24
       AUTO_SEED: "false"
+      EVIDENCE_STORAGE_DIR: /app/storage/evidence
+    volumes:
+      - evidence_storage:/app/storage/evidence
     ports:
       - "4000:4000"
     depends_on:
@@ -99,7 +102,9 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  evidence_storage:
 
 networks:
   sih26242-network:
     driver: bridge
+

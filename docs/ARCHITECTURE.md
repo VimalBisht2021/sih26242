@@ -90,14 +90,59 @@ The platform implements the engineering contract specified in `PS26242_RPL_Asses
 
 ---
 
-## 5. Security & Threat Mitigations
-
 | Threat | System Mitigation |
 | :--- | :--- |
 | **Rubber-Stamping / Automation Bias** | Intentional wrong-AI challenge cases; assessor must explicitly accept, edit, or reject each observation. |
-| **Evidence Tampering** | SHA-256 payload and artifact hashing stored with capture metadata. |
+| **Evidence Tampering** | Dual-ended SHA-256 hashing (client Web Crypto + independent server digest); magic bytes validation; HTTP 400 `INTEGRITY_MISMATCH` on divergence. |
 | **Score Tampering** | Server-side recomputation from individual criteria marks; client-submitted totals are ignored. |
 | **Offline Sign-off Fraud** | Server-side finalization gate strictly rejects offline submissions (`isOfflineSubmission: true`). |
+| **Arbitrary File Upload / Traversal** | Regex-enforced storage paths (`^[a-zA-Z0-9_\-]+$`), binary magic bytes validation, and isolated Docker volume persistence. |
+
+---
+
+## 6. Evidence Storage & Cryptographic Verification Architecture
+
+```
+[Browser Camera (WebRTC) / File Input (<input type="file">)]
+                       │
+                       ▼
+              [Actual File / Blob]
+                       │
+                       ▼
+       [Client SHA-256 (window.crypto.subtle)]
+                       │
+                       ▼ (multipart/form-data)
+              [NestJS Upload API]
+                       │
+         ┌─────────────┴─────────────┐
+         ▼                           ▼
+[Magic Bytes & MIME Check]   [Server SHA-256 Recomputation]
+         │                           │
+         └─────────────┬─────────────┘
+                       ▼
+         [SHA Comparison (Client vs Server)]
+          ├── MISMATCH ──► [HTTP 400 INTEGRITY_MISMATCH Rejected]
+          └── MATCH
+                       │
+                       ▼
+        [Durable Filesystem Storage]
+          (/app/storage/evidence/:assessment/:task/:evidenceId.ext)
+                       │
+                       ▼
+        [PostgreSQL Evidence Record]
+          (sha256, storageUri, mimeType, sizeBytes, taskCode)
+                       │
+                       ▼
+        [AuditEvent Record (EVIDENCE_CAPTURED)]
+                       │
+                       ▼
+        [Assessor Review & Visual Media Inspection]
+```
+
+1. **Dual Capture Ingestion:** Real file upload (`<input type="file">`) and real in-browser WebRTC camera (`navigator.mediaDevices.getUserMedia`) with live viewfinder.
+2. **Dual-Ended SHA-256 Verification:** The browser calculates SHA-256 before upload. The API server recomputes SHA-256 directly on received bytes and asserts cryptographic equality before writing to disk.
+3. **Durable Media Storage:** Managed by `EvidenceStorageService` writing to Docker volume `evidence_storage` mapped to `/app/storage/evidence`. Virtual storage URI pattern `/evidence/{assessmentId}/{taskCode}/{evidenceId}.{ext}` guarantees path isolation.
+4. **Visual Media Rendering:** Media buffers are streamed via `GET /api/assessments/:id/evidence/:evidenceId/file` with verified MIME types and SHA-256 ETags.
 | **Clock Manipulation** | Client and server timestamps captured; `abs(skew) > 300s` flags `CLOCK_DRIFT_REVIEW`. |
 | **Sync Replay Attacks** | Unique `eventId` deduplication via PostgreSQL unique constraint. |
 | **Upward Override Abuse** | Policy engine strictly blocks upward overrides for mandatory criteria failures or minimum pass failures. |
